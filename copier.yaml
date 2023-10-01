@@ -1,0 +1,62 @@
+_min_copier_version: 8.3.0
+_subdirectory: template
+
+package_name:
+    type: str
+    help: Your package name.
+
+module_name:
+    type: str
+    help: Initial (single) module name.
+
+description:
+    type: str
+    help: A one line description for your package
+
+github_organization:
+  type: str
+  help: Which github organization/user to store repo in.
+
+git_repo_url:
+  type: str
+  help: The soure code repository URL where this package will live.
+  default: "https://github.com/{{ github_organization }}/{{ package_name }}.git"
+
+author_name:
+  type: str
+  help: Your name
+
+author_email:
+  type: str
+  help: Your email address.
+
+legal_entity:
+  type: str
+  help: |
+    Legal entity abbreviantion if any (for companies), e.g. Ltd, ApS, ... see https://en.wikipedia.org/wiki/List_of_legal_entity_types_by_country.
+    Leave empty if not a company.
+
+company_name:
+  type: str
+  help: Your company name without legal entity, if any. Leave it as author if not a company.
+  default: "{{ author_name }}"
+
+legal_company:
+  type: str
+  default: "{{ company_name + (' ' + legal_entity if legal_entity else '') }}"
+  when: false
+
+copyright_holder:
+  type: str
+  help: Copyright holder name, e.g. your name, company name and legal entity if any. Leave it as author if not a company.
+  default: "{{ author_name + (', ' + legal_company) if legal_company != author_name }}"
+
+creation_year:
+  type: int
+  help: Initial creation year of this project, e.g. copyright from.
+  default: "{{ ('%Y-%m-%d %H:%M:%S' | strftime | to_datetime).year }}"
+
+pytest_min_version:
+  type: str
+  default: "7.4.1"
+  when: false

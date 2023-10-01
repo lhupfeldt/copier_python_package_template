@@ -1,0 +1,7 @@
+# Copyright © {{ creation_year }} - {{ ('%Y-%m-%d %H:%M:%S' | strftime | to_datetime).year }} {{ copyright_holder }}
+
+[build-system]
+requires = ["setuptools >= 68.0.0", "wheel>=0.40.0", "setuptools_scm[toml]>=7.1.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
