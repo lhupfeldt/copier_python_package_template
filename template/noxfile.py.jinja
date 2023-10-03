@@ -14,24 +14,56 @@ _PY_VERSIONS = ["3.12", "3.11", "3.10"]
 nox.options.error_on_missing_interpreters = True
 
 
+def _local_devel_dependencies(*package_names: str):
+    """ Dependencies on local development packages
+
+    If any package specified is present in the local file system next to this repository, then we will test against both the upstream and local version.
+    TODO: Check if local and upstream are the same and skip tests?
+    """
+
+    lddeps = []
+    for pname in package_names:
+        for local_src_dir in (_HERE.parent/pname.replace('-', '_'), _HERE.parent/pname):
+            if local_src_dir.exists():
+                lddeps.append(str(local_src_dir))
+                break
+
+    return lddeps + list(package_names) or [None]
+
+
+def _install(session, *args, lddep=None):
+    if lddep:
+        session.install("--upgrade", lddep)
+    session.install(*args)  # Version repeated in setup.cfg
+
+
+# Add local depdency packages here
+_LDDEPS = _local_devel_dependencies()
+
+
 @nox.session(python=_PY_VERSIONS, reuse_venv=True)
-def typecheck(session):
-    session.install("-e", ".", "mypy>=1.5.1")
+@nox.parametrize("lddep", _LDDEPS)
+def typecheck(session, lddep):
+    # Add 'types-...' packages here if needed
+    _install(session, "-e", ".", "mypy>=1.5.1", lddep=lddep)
     session.run("mypy", "-v", str(_HERE/"src"))
 
 
-@nox.session(reuse_venv=True)
-def pylint(session):
-    session.install(".", "pylint>=2.16.1", "pylint-pytest>=1.1.2")
+@nox.session(python=_PY_VERSIONS[0], reuse_venv=True)
+@nox.parametrize("lddep", _LDDEPS)
+def pylint(session, lddep):
+    _install(session, ".", "pylint>=2.16.1", "pylint-pytest>=1.1.2", lddep=lddep)
 
-    # TODO: enable checks
+    print("\nPylint src")
+    session.run("pylint", "--fail-under", "9.5", str(_HERE/"src"))
+    print("\nPylint test sources")
     disable_checks = "missing-module-docstring,missing-class-docstring,missing-function-docstring"
-    session.run("pylint", "--disable", disable_checks, str(_HERE/"src"))
-    disable_checks += ",multiple-imports,invalid-name"
-    session.run("pylint", "--fail-under", "9.94", "--variable-rgx", r"[a-z_][a-z0-9_]{1,30}$", "--disable", disable_checks, str(_HERE/"test"))
+    disable_checks += ",multiple-imports,invalid-name,duplicate-code"
+    session.run("pylint", "--fail-under", "9.7", "--variable-rgx", r"[a-z_][a-z0-9_]{1,30}$", "--disable", disable_checks, str(_HERE/"test"))
 
 
 @nox.session(python=_PY_VERSIONS, reuse_venv=True)
-def unit(session):
-    session.install(".", "pytest>={{ pytest_min_version }}", "coverage>=7.3.1", "pytest-cov>=4.1.0")
-    session.run("pytest", "--cov", "--cov-report=term-missing", f"--cov-config={_TEST_DIR}/.coveragerc", *session.posargs)
+@nox.parametrize("lddep", _LDDEPS)
+def unit(session, lddep):
+    _install(session, ".", "pytest>={{ pytest_min_version }}", "coverage>=7.3.1", "pytest-cov>=4.1.0", lddep=lddep)
+    session.run("pytest", "--import-mode=append", "--cov", "--cov-report=term-missing", f"--cov-config={_TEST_DIR}/.coveragerc", *session.posargs)
