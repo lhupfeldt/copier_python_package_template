@@ -10,11 +10,16 @@ from pytest import fixture
 
 _HERE = Path(__file__).absolute().parent
 
-_UNDERSCORE_TEST_RE = re.compile('_test$')
+_OUT_DIRS = {}
 
-def _test_key_shortener(key_prefix, key_postfix):
-    prefix = _UNDERSCORE_TEST_RE.sub('', key_prefix).replace('test.', 'test_') + '_'
-    return key_prefix + '.' + key_postfix.replace(prefix, '')
+def _test_key_shortener(key_prefix, key_suffix):
+    prefix = key_prefix.replace('test.', '').replace('_test', '')
+    suffix = key_suffix.replace(prefix, '').replace('test_', '').strip('_')
+    outd = prefix + '.' + suffix
+    args = (key_prefix, key_suffix)
+    assert _OUT_DIRS.setdefault(outd, args) == args, \
+        f"Out dir name '{outd}' reused! Previous from {_OUT_DIRS[outd]}, now  {args}. Test is not following namimg convention."
+    return outd
 
 
 def _test_node_shortener(request):
