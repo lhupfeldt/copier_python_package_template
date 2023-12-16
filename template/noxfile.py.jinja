@@ -2,7 +2,12 @@
 
 # Use nox >= 2023.4.22
 
+import os
+import glob
 from pathlib import Path
+{%- if local_devel_dependency %}
+from typing import NoReturn
+{% endif %}
 
 import nox
 
@@ -13,57 +18,142 @@ _PY_VERSIONS = ["3.12", "3.11", "3.10"]
 
 nox.options.error_on_missing_interpreters = True
 
-
-def _local_devel_dependencies(*package_names: str):
+{%- if local_devel_dependency %}
+class _LdDep():
     """ Dependencies on local development packages
 
-    If any package specified is present in the local file system next to this repository, then we will test against both the upstream and local version.
-    TODO: Check if local and upstream are the same and skip tests?
+    If any package specified is present in the local file system next to this repository, then we will test against both the
+    upstream and local version if __version__ is different (note that this also takes local uncommited changes into account).
+
+    Explicit selection of local or upstream can also be done by setting env variable MORG_USE_DEP to either 'local' or 'upstream'.
     """
 
-    lddeps = []
-    for pname in package_names:
-        for local_src_dir in (_HERE.parent/pname.replace('-', '_'), _HERE.parent/pname):
+    class Installer():
+        def __init__(self, lddep_instance, dep: str|Path):
+            self.lddep_instance = lddep_instance
+            self.dep = dep
+
+        def __repr__(self) -> str:
+            return str(self.dep)
+
+        def check_use_dep(self, session, *, local_dep_pythons=_PY_VERSIONS[0:1], skip=False) -> bool|NoReturn:
+            """Determine before installing dependency whether to run session with this dependency"""
+            selected_dep_type=os.environ.get("MORG_USE_DEP")
+            dep_types = (None, "local", "upstream")
+            if selected_dep_type not in dep_types:
+                raise ValueError(f"MORG_USE_DEP must be one of {dep_types}, got {selected_dep_type}.")
+
+            def _skip(msg) -> bool|NoReturn:
+                if not skip:
+                    print(msg)
+                    return False
+                return session.skip(msg)
+
+            match (self.dep, selected_dep_type):
+                case (Path(), "upstream"):
+                    return _skip(f"Local devel dependency {self.dep} deselected by MORG_USE_DEP={selected_dep_type}.")
+                case (Path(), _) if session.python and not session.python in local_dep_pythons:
+                    return _skip(f"Local devel dependency {self.dep} deselected because {session.python} not in {local_dep_pythons}.")
+                case (str(), "local"):
+                    return _skip(f"Upstream dependency {self.dep} deselected by MORG_USE_DEP={selected_dep_type}.")
+
+        def install(self, session, *args, local_dep_pythons=_PY_VERSIONS[0:1]) -> None|NoReturn:
+            """Install dependency and check whether this version was already tested against before deciding whether to continue session."""
+            # Check if session with this package instance is deselected
+            self.check_use_dep(session, local_dep_pythons=local_dep_pythons, skip=True)
+
+            # Install dependency
+            session.install(*args, "--upgrade", str(self.dep))
+
+            # Check if version is the same as already tested against in this session
+            base_session_name = session.name.replace(str(self.dep), '')
+            package_name = self.lddep_instance.package_name
+            current = session.run("python", "-c", f"import {package_name}; print({package_name}.__version__);", silent=True).strip()
+            prev = self.lddep_instance.tested_dep_version.get(base_session_name)
+            if current == prev:
+                session.skip(f"Dependency {self.dep} deselected because version {current} was already tested against using local package.")
+
+            # Vesion is different or it is the first use, continue session
+            self.lddep_instance.tested_dep_version[base_session_name] = current
+            if prev:
+                print(f"noxfile > '{package_name}' versions - current: {current}, previous: {prev}")
+
+    def __init__(self, package_name):
+        self.package_name = package_name.replace('-', '_')
+        self.tested_dep_version: dict[tuple[str, str]] = {}
+
+    def alternatives(self) -> tuple[Installer|str]:
+        """Collect local development dependencies."""
+        parent_dir = _HERE.parent
+        for local_src_dir in (parent_dir/self.package_name.replace('-', '_'), parent_dir/self.package_name):
             if local_src_dir.exists():
-                lddeps.append(str(local_src_dir))
-                break
+                return (self.Installer(self, local_src_dir), self.Installer(self, self.package_name))
 
-    return lddeps + list(package_names) or [None]
-
-
-def _install(session, *args, lddep=None):
-    if lddep:
-        session.install("--upgrade", lddep)
-    session.install(*args)  # Version repeated in setup.cfg
+        print(f"noxfile > No local package working repository found for package '{self.package_name}'. Testing with released package only.")
+        return (self.Installer(self, self.package_name),)
 
 
 # Add local depdency packages here
-_LDDEPS = _local_devel_dependencies()
+{{ local_devel_dependency_var }} = _LdDep("{{ local_devel_dependency }}").alternatives()
+{% endif %}
+
+@nox.session(python=_PY_VERSIONS, reuse_venv=True)
+{%- if local_devel_dependency %}
+@nox.parametrize("{{ local_devel_dependency_param }}", {{ local_devel_dependency_var }})
+def typecheck(session, {{ local_devel_dependency_param }}):
+    {{ local_devel_dependency_param }}.install(session)
+{%- else %}
+def typecheck(session):
+{%- endif %}
+    session.install("-e", ".", "mypy>=1.5.1")
+    session.run("mypy", str(_HERE/"src"))
+
+
+# TODO: pylint-pytest does not support 3.12
+@nox.session(python="3.11", reuse_venv=True)
+{%- if local_devel_dependency %}
+@nox.parametrize("{{ local_devel_dependency_param }}", {{ local_devel_dependency_var }})
+def pylint(session, {{ local_devel_dependency_param }}):
+    {{ local_devel_dependency_param }}.install(session, local_dep_pythons=["3.11"])
+{%- else %}
+def pylint(session):
+{%- endif %}
+    session.install(".", "pylint<3.0.0", "pylint-pytest>=1.1.2")  # TODO pylint/pylint-pytest
+{% if local_devel_dependency %}
+    print("\nPylint src using:", {{ local_devel_dependency_param }})
+{%- else %}
+    print("\nPylint src)")
+{%- endif %}
+    session.run("pylint", "--fail-under", "9.8", str(_HERE/"src"))
+{% if local_devel_dependency %}
+    if not {{ local_devel_dependency_param }}.check_use_dep(session, local_dep_pythons=[]):
+        return
+
+    print("\nPylint test sources using:", {{ local_devel_dependency_param }})
+{%- else %}
+    print("\nPylint test sources")
+{%- endif %}
+    disable_checks = "missing-module-docstring,missing-class-docstring,missing-function-docstring"
+    disable_checks += ",multiple-imports,invalid-name,duplicate-code"
+    session.run("pylint", "--fail-under", "9.8", "--variable-rgx", r"[a-z_][a-z0-9_]{1,30}$", "--disable", disable_checks, str(_HERE/"test"))
 
 
 @nox.session(python=_PY_VERSIONS, reuse_venv=True)
-@nox.parametrize("lddep", _LDDEPS)
-def typecheck(session, lddep):
-    # Add 'types-...' packages here if needed
-    _install(session, "-e", ".", "mypy>=1.5.1", lddep=lddep)
-    session.run("mypy", "-v", str(_HERE/"src"))
+{%- if local_devel_dependency %}
+@nox.parametrize("{{ local_devel_dependency_param }}", {{ local_devel_dependency_var }})
+def unit(session, {{ local_devel_dependency_param }}):
+    {{ local_devel_dependency_param }}.install(session, local_dep_pythons=_PY_VERSIONS[0:1])
+{%- else %}
+def unit(session):
+{%- endif %}
+    session.install(".", "pytest>={{ pytest_min_version }}", "coverage>=7.3.1", "pytest-cov>=4.1.0")
+    session.run("pytest", "--import-mode=append", "--cov", "--cov-report=term-missing", f"--cov-config={_TEST_DIR}/.coveragerc", *session.posargs)
 
 
 @nox.session(python=_PY_VERSIONS[0], reuse_venv=True)
-@nox.parametrize("lddep", _LDDEPS)
-def pylint(session, lddep):
-    _install(session, ".", "pylint>=2.16.1", "pylint-pytest>=1.1.2", lddep=lddep)
-
-    print("\nPylint src")
-    session.run("pylint", "--fail-under", "9.5", str(_HERE/"src"))
-    print("\nPylint test sources")
-    disable_checks = "missing-module-docstring,missing-class-docstring,missing-function-docstring"
-    disable_checks += ",multiple-imports,invalid-name,duplicate-code"
-    session.run("pylint", "--fail-under", "9.7", "--variable-rgx", r"[a-z_][a-z0-9_]{1,30}$", "--disable", disable_checks, str(_HERE/"test"))
-
-
-@nox.session(python=_PY_VERSIONS, reuse_venv=True)
-@nox.parametrize("lddep", _LDDEPS)
-def unit(session, lddep):
-    _install(session, ".", "pytest>={{ pytest_min_version }}", "coverage>=7.3.1", "pytest-cov>=4.1.0", lddep=lddep)
-    session.run("pytest", "--import-mode=append", "--cov", "--cov-report=term-missing", f"--cov-config={_TEST_DIR}/.coveragerc", *session.posargs)
+def build(session):
+    session.install("build>=1.0.3", "twine>=4.0.2")
+    for ff in glob.glob("dist/*"):
+        os.remove(ff)
+    session.run("python", "-m", "build")
+    session.run("python", "-m", "twine", "check", "dist/*")

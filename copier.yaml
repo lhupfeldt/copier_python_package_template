@@ -1,4 +1,4 @@
-_min_copier_version: 8.3.0
+_min_copier_version: 9.1.0
 _subdirectory: template
 
 package_name:
@@ -55,6 +55,23 @@ creation_year:
   type: int
   help: Initial creation year of this project, e.g. copyright from.
   default: "{{ ('%Y-%m-%d %H:%M:%S' | strftime | to_datetime).year }}"
+
+local_devel_dependency:
+  type: str
+  help: |
+    Setup test to allow running against a local directory package dependency as weel as corresponding pypi released package. Template only supports one.
+    Package name (enter for no local development dependency):
+  default: ""
+
+local_devel_dependency_param:
+  type: str
+  default: "{{ local_devel_dependency.replace('-', '_').lower() }}_dep"
+  when: false
+
+local_devel_dependency_var:
+  type: str
+  default: "_{{ local_devel_dependency_param.upper() }}S"
+  when: false
 
 pytest_min_version:
   type: str
