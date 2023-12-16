@@ -18,7 +18,7 @@ _PY_VERSIONS = ["3.12", "3.11", "3.10"]
 
 nox.options.error_on_missing_interpreters = True
 
-{%- if local_devel_dependency %}
+{% if local_devel_dependency %}
 class _LdDep():
     """ Dependencies on local development packages
 
