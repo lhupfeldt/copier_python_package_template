@@ -13,8 +13,8 @@ _HERE = Path(__file__).absolute().parent
 _UNDERSCORE_TEST_RE = re.compile('_test$')
 
 def _test_key_shortener(key_prefix, key_postfix):
-    tfunc_prefix = _UNDERSCORE_TEST_RE.sub('', key_prefix).replace('test.', 'test_') + '_'
-    return key_prefix + '.' + key_postfix.replace(tfunc_prefix, '')
+    prefix = _UNDERSCORE_TEST_RE.sub('', key_prefix).replace('test.', 'test_') + '_'
+    return key_prefix + '.' + key_postfix.replace(prefix, '')
 
 
 def _test_node_shortener(request):
