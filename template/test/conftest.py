@@ -1,6 +1,5 @@
 """Configuration file for 'pytest'"""
 
-import re
 import errno
 from pathlib import Path
 import shutil
