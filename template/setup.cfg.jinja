@@ -17,9 +17,9 @@ classifiers =
     License :: OSI Approved :: BSD License
     Natural Language :: English
     Operating System :: OS Independent
-    Programming Language :: Python :: 3.10
-    Programming Language :: Python :: 3.11
-    Programming Language :: Python :: 3.12
+    {% for py_version in python_versions %}
+    Programming Language :: Python :: {{ py_version }}
+    {% endfor %}
     Topic :: Software Development :: Libraries
 
 [options]
@@ -28,7 +28,7 @@ include_package_data = True
 install_requires =
     # Add your dependencies here
 
-python_requires = >= 3.10
+python_requires = >= {{ python_min_version }}
 
 packages =
     {{ package_name }}

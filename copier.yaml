@@ -1,6 +1,11 @@
 _min_copier_version: 9.1.0
 _subdirectory: template
 
+_envops:
+  trim_blocks: true
+  lstrip_blocks: true
+  keep_trailing_newline: true
+
 package_name:
     type: str
     help: Your package name.
@@ -71,6 +76,16 @@ local_devel_dependency_param:
 local_devel_dependency_var:
   type: str
   default: "_{{ local_devel_dependency_param.upper() }}S"
+  when: false
+
+python_versions:
+  type: yaml
+  default: ["3.13", "3.12", "3.11", "3.10"]
+  when: false
+
+python_min_version:
+  type: str
+  default: "{{ python_versions[-1] }}"
   when: false
 
 pytest_min_version:
