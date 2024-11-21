@@ -3,8 +3,8 @@
 # Use nox >= 2023.4.22
 
 import os
-import glob
 from pathlib import Path
+import shutil
 {% if local_devel_dependency %}
 from typing import NoReturn
 {% endif %}
@@ -109,8 +109,7 @@ def typecheck(session):
     session.run("mypy", str(_HERE/"src"))
 
 
-# TODO: pylint-pytest does not support 3.12
-@nox.session(python="3.11", reuse_venv=True)
+@nox.session(python=_PY_VERSIONS[0], reuse_venv=True)
 {% if local_devel_dependency %}
 @nox.parametrize("{{ local_devel_dependency_param }}", {{ local_devel_dependency_var }})
 def pylint(session, {{ local_devel_dependency_param }}):
@@ -152,8 +151,8 @@ def unit(session):
 
 @nox.session(python=_PY_VERSIONS[0], reuse_venv=True)
 def build(session):
+    if Path("dist").is_dir():
+        shutil.rmtree("dist")
     session.install("build>=1.0.3", "twine>=4.0.2")
-    for ff in glob.glob("dist/*"):
-        os.remove(ff)
     session.run("python", "-m", "build")
     session.run("python", "-m", "twine", "check", "dist/*")
