@@ -121,7 +121,7 @@ def pylint(session):
 {% if local_devel_dependency %}
     print("\nPylint src using:", {{ local_devel_dependency_param }})
 {% else %}
-    print("\nPylint src)")
+    print("\nPylint src")
 {% endif %}
     session.run("pylint", "--fail-under", "9.8", str(_HERE/"src"))
 {% if local_devel_dependency %}
