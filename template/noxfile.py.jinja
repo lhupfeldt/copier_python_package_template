@@ -66,7 +66,7 @@ class _LdDep():
             session.install(*args, "--upgrade", str(self.dep))
 
             # Check if version is the same as already tested against in this session
-            base_session_name = session.name.replace(str(self.dep), '')
+            base_session_name = session.name.replace(str(self.dep), "")
             package_name = self.lddep_instance.package_name
             current = session.run("python", "-c", f"import {package_name}; print({package_name}.__version__);", silent=True).strip()
             prev = self.lddep_instance.tested_dep_version.get(base_session_name)
@@ -79,13 +79,13 @@ class _LdDep():
                 print(f"noxfile > '{package_name}' versions - current: {current}, previous: {prev}")
 
     def __init__(self, package_name):
-        self.package_name = package_name.replace('-', '_')
+        self.package_name = package_name.replace("-", "_")
         self.tested_dep_version: dict[tuple[str, str]] = {}
 
     def alternatives(self) -> tuple[Installer|str]:
         """Collect local development dependencies."""
         parent_dir = _HERE.parent
-        for local_src_dir in (parent_dir/self.package_name.replace('-', '_'), parent_dir/self.package_name):
+        for local_src_dir in (parent_dir/self.package_name.replace("-", "_"), parent_dir/self.package_name):
             if local_src_dir.exists():
                 return (self.Installer(self, local_src_dir), self.Installer(self, self.package_name))
 
@@ -117,7 +117,7 @@ def pylint(session, {{ local_devel_dependency_param }}):
 {% else %}
 def pylint(session):
 {% endif %}
-    session.install(".", "pylint>=3.3.1", "pylint-pytest>=1.1.8")
+    session.install(".", "pylint>=4.0.3", "pylint-pytest>=1.1.8")
 {% if local_devel_dependency %}
     print("\nPylint src using:", {{ local_devel_dependency_param }})
 {% else %}
