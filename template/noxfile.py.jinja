@@ -106,7 +106,7 @@ def typecheck(session, {{ local_devel_dependency_param }}):
 def typecheck(session):
 {% endif %}
     session.install("-e", ".", "mypy>=1.5.1")
-    session.run("mypy", str(_HERE/"src"))
+    session.run("mypy", "--strict", "--check-untyped", "--implicit-optional", str(_HERE/"src"))
 
 
 @nox.session(python=_PY_VERSIONS[0], reuse_venv=True)
